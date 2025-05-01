@@ -1,4 +1,4 @@
-package websocket
+package hub
 
 import (
 	"sync"
@@ -19,8 +19,8 @@ type Hub struct {
 	mu           sync.Mutex
 }
 
-func HubInstance() *Hub {
-	return &Hub{
+var HubInstance = &Hub {
+	// return &Hub{
 		// Rooms:        make([]*models.Room, 0),
 		WaitingQueue: make([]*models.User, 0),
 		UserToRoom:   make(map[*models.User]*models.Room),
@@ -28,25 +28,25 @@ func HubInstance() *Hub {
 		UnRegister:   make(chan *models.User),
 		Skip:         make(chan *models.User),
 		Broadcast:    make(chan *models.BroadcastMessage),
-	}
+	// }
 }
 
 func (h *Hub) Run() {
 	for {
 		select {
 		case client := <-h.Register:
-			h.handleRegister(client)
+			h.HandleRegister(client)
 		case client := <-h.UnRegister:
-			h.handleUnRegister(client)
+			h.HandleUnRegister(client)
 		case client := <-h.Skip:
-			h.handleSkip(client)
+			h.HandleSkip(client)
 		case broadCastMessage := <-h.Broadcast:
-			h.handleBroadcast(broadCastMessage.Client, broadCastMessage.Message)
+			h.HandleBroadcast(broadCastMessage.Client, broadCastMessage.Message)
 		}
 	}
 }
 
-func (h *Hub) handleRegister(C *models.User) {
+func (h *Hub) HandleRegister(C *models.User) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if len(h.WaitingQueue) > 0 {
@@ -69,7 +69,7 @@ func (h *Hub) handleRegister(C *models.User) {
 	}
 }
 
-func (h *Hub) handleUnRegister(C *models.User) {
+func (h *Hub) HandleUnRegister(C *models.User) {
 	for i, user := range h.WaitingQueue {
 		if C == user {
 			h.WaitingQueue = append(h.WaitingQueue[:i], h.WaitingQueue[i+1:]...)
@@ -89,14 +89,14 @@ func (h *Hub) handleUnRegister(C *models.User) {
 		delete(h.UserToRoom, C)
 		if partner != nil {
 			partner.Send <- []byte(`{"type":"system","message":"Your Partner has been disconnected, waiting for another partner..."}`)
-			h.handleRegister(partner)
+			h.HandleRegister(partner)
 		}
 		return
 	}
 
 }
 
-func (h *Hub) handleSkip(C *models.User) {
+func (h *Hub) HandleSkip(C *models.User) {
 
 	if room, exists := h.UserToRoom[C]; exists {
 		if room.User1 == C || room.User2 == C {
@@ -114,13 +114,13 @@ func (h *Hub) handleSkip(C *models.User) {
 			C.Send <- []byte(`{"type":"system","message":"You skipped. Searching again..."}`)
 			if partner != nil {
 				partner.Send <- []byte(`{"type":"system","message":"Your partner skipped. Searching again..."}`)
-				h.handleRegister(partner)
+				h.HandleRegister(partner)
 			}
 		}
 	}
 }
 
-func (h *Hub) handleBroadcast(C *models.User, message []byte) {
+func (h *Hub) HandleBroadcast(C *models.User, message []byte) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if room, exists := h.UserToRoom[C]; exists {

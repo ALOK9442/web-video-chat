@@ -3,17 +3,19 @@ package models
 import "github.com/gorilla/websocket"
 
 type User struct {
+	id   string
 	Conn *websocket.Conn
 	Send chan []byte
 }
 
 type Room struct {
+	id string
 	User1 *User
 	User2 *User
 }
 
 type BroadcastMessage struct {
-	Client *User
+	Client  *User
 	Message []byte
 }
 
