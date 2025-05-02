@@ -3,13 +3,13 @@ package models
 import "github.com/gorilla/websocket"
 
 type User struct {
-	id   string
+	Id   string
 	Conn *websocket.Conn
 	Send chan []byte
 }
 
 type Room struct {
-	id string
+	Id    string
 	User1 *User
 	User2 *User
 }
@@ -17,6 +17,11 @@ type Room struct {
 type BroadcastMessage struct {
 	Client  *User
 	Message []byte
+}
+
+type SignalMessage struct {
+	Type string      `json:"type"`
+	Data interface{} `json:"data"`
 }
 
 func NewUser(c *websocket.Conn) *User {

@@ -52,7 +52,9 @@ func (h *Hub) HandleRegister(C *models.User) {
 	if len(h.WaitingQueue) > 0 {
 		partner := h.WaitingQueue[0]
 		h.WaitingQueue = h.WaitingQueue[1:]
+
 		room := &models.Room{
+			Id: partner.Id + " " + C.Id,
 			User1: partner,
 			User2: C,
 		}
