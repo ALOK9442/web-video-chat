@@ -1,8 +1,11 @@
 package hub
 
 import (
+	"encoding/json"
+	"fmt"
 	"sync"
 
+	"github.com/ALOK9442/web-video-chat/backend/core/helpers"
 	"github.com/ALOK9442/web-video-chat/backend/core/models"
 )
 
@@ -19,15 +22,15 @@ type Hub struct {
 	mu           sync.Mutex
 }
 
-var HubInstance = &Hub {
+var HubInstance = &Hub{
 	// return &Hub{
-		// Rooms:        make([]*models.Room, 0),
-		WaitingQueue: make([]*models.User, 0),
-		UserToRoom:   make(map[*models.User]*models.Room),
-		Register:     make(chan *models.User),
-		UnRegister:   make(chan *models.User),
-		Skip:         make(chan *models.User),
-		Broadcast:    make(chan *models.BroadcastMessage),
+	// Rooms:        make([]*models.Room, 0),
+	WaitingQueue: make([]*models.User, 0),
+	UserToRoom:   make(map[*models.User]*models.Room),
+	Register:     make(chan *models.User),
+	UnRegister:   make(chan *models.User),
+	Skip:         make(chan *models.User),
+	Broadcast:    make(chan *models.BroadcastMessage),
 	// }
 }
 
@@ -54,20 +57,69 @@ func (h *Hub) HandleRegister(C *models.User) {
 		h.WaitingQueue = h.WaitingQueue[1:]
 
 		room := &models.Room{
-			Id: partner.Id + " " + C.Id,
+			Id:    partner.Id + " " + C.Id,
 			User1: partner,
 			User2: C,
 		}
 		// h.Rooms = append(h.Rooms, room)
+		innerMessageClient := map[string]interface{}{
+			"roomId":  room.Id,
+			"message": "You're now Connected",
+			"role":"calleee",
+		}
+		innerMessagePartner := map[string]interface{}{
+			"roomId":  room.Id,
+			"message": "You're now Connected",
+			"role":"caller",
+		}
+		// innerMessageJSON, err := json.Marshal(innerMessage)
+		// if err != nil {
+		// 	fmt.Println(err)
+		// }
+
+		// outerMessageClient := map[string]interface{}{
+		// 	"type": "success",
+		// 	"data": innerMessageClient,
+		// }
+		// outerMessagePeer := map[string]interface{}{
+		// 	"type": "success",
+		// 	"data": innerMessagePeer,
+		// }
+		// finalJSON, err := json.Marshal(outerMessage)
+		// if err != nil {
+		// 	fmt.Println("Error marshalling:", err)
+		// 	return
+		// }
 
 		h.UserToRoom[partner] = room
 		h.UserToRoom[C] = room
-		partner.Send <- []byte(`{"type":"system","message": "You're now Connected" }`)
-		C.Send <- []byte(`{"type":"system","message": "You're now Connected" }`)
+
+		partner.Send <- helpers.MarshalMessage("caller", innerMessagePartner)
+		C.Send <- helpers.MarshalMessage("calleee", innerMessageClient)
 
 	} else {
 		h.WaitingQueue = append(h.WaitingQueue, C)
-		C.Send <- []byte(`{"type":"system", "message":"Waiting for a partner..."}`)
+		innerMessage := map[string]interface{}{
+			"type":    "system",
+			"message": "Waiting for a partner...",
+		}
+		// innerMessageJSON, err := json.Marshal(innerMessage)
+		// if err != nil {
+		// 	fmt.Println(err)
+		// }
+
+		outerMessage := map[string]interface{}{
+			"type": "waiting",
+			"data": innerMessage,
+		}
+
+		finalJSON, err := json.Marshal(outerMessage)
+		if err != nil {
+			fmt.Println("Error marshalling:", err)
+			return
+		}
+
+		C.Send <- finalJSON
 	}
 }
 

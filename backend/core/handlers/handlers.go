@@ -22,6 +22,8 @@ func HandleWebsocket(c *gin.Context) {
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
 		fmt.Println("err occured:", err)
+		
+	fmt.Println("123123")
 		return
 	}
 	user := &models.User{
@@ -30,6 +32,7 @@ func HandleWebsocket(c *gin.Context) {
 		Send: make(chan []byte, 256),
 	}
 	hub.HubInstance.Register <- user
+	fmt.Println(user)
 	go readMessage(user)
 	go writeMessage(user)
 }
@@ -43,7 +46,6 @@ func readMessage(user *models.User) {
 		msgType, msg, err := user.Conn.ReadMessage()
 		if err != nil {
 			fmt.Printf("Error occured: %v of type: %v \n", err, msgType)
-			user.Send <- []byte(`{"type":"unknown","message":"Error occured send again and if the issue persists refresh page"}`)
 			break
 		}
 		var signal models.SignalMessage
@@ -52,6 +54,8 @@ func readMessage(user *models.User) {
 			continue
 		}
 		switch signal.Type {
+		case "skip":
+			hub.HubInstance.Skip <- user
 		case "offer", "answer", "ice-candidate", "chat":
 			hub.HubInstance.Broadcast <- &models.BroadcastMessage{
 				Client:  user,
@@ -62,10 +66,16 @@ func readMessage(user *models.User) {
 }
 
 func writeMessage(user *models.User) {
+	defer func() {
+		close(user.Send)
+		user.Conn.Close()
+	}()
 	for msg := range user.Send {
 		err := user.Conn.WriteMessage(websocket.TextMessage, msg)
+
 		if err != nil {
-			fmt.Println("error occured:", err)
+			fmt.Println("error occured demn:", err)
+			fmt.Println(err.Error())
 			break
 		}
 	}
