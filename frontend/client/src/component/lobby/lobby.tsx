@@ -10,9 +10,10 @@ export default function Lobby() {
   const [socket, setSocket] = useState<WebSocket | null>(null);
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const remoteVideoref = useRef<HTMLVideoElement | null>(null);
+  const newIceCandidateQueue = useRef<RTCIceCandidateInit[]>([]);
+  const remoteDescriptionStatus = useRef(false);
 
   useEffect(() => {
-    let localStream: MediaStream;
     // console.log(ws)
     const peer = new RTCPeerConnection({
       iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
@@ -28,10 +29,13 @@ export default function Lobby() {
       .then((stream) => {
         console.log("stream", stream);
         if (localVideoRef.current) {
-          localStream = stream;
+          console.log("inside current", localVideoRef);
           localVideoRef.current.srcObject = stream;
+        } else {
+          console.log("else");
         }
         stream.getTracks().forEach((track) => {
+          console.log("tracks", track);
           peer.addTrack(track, stream);
         });
       })
@@ -39,10 +43,24 @@ export default function Lobby() {
         console.error("Error getting user media:", err);
       });
 
+    peer.ontrack = async (e) => {
+      console.log(e);
+      console.log(e.streams);
+      if (remoteVideoref.current) {
+        console.log("hehe", remoteVideoref);
+        remoteVideoref.current.srcObject = e.streams[0];
+      }
+    };
     const ws: WebSocket | null = new WebSocket("ws://localhost:8080/ws");
+    setTimeout(() => {
+      const receivers = peer.getReceivers();
+      receivers.forEach((r) => {
+        console.log("Receiver track:", r.track);
+      });
+    }, 2000);
 
     peer.onicecandidate = (e) => {
-      if (e.candidate !== null && socket?.readyState === ws.OPEN) {
+      if (e.candidate !== null && ws?.readyState === WebSocket.OPEN) {
         console.log(e.candidate);
         ws.send(
           JSON.stringify({
@@ -50,14 +68,6 @@ export default function Lobby() {
             candidate: e.candidate,
           })
         );
-      }
-    };
-
-    peer.ontrack = async (e) => {
-      if (remoteVideoref.current) {
-        console.log(e);
-        console.log(e.streams);
-        remoteVideoref.current.srcObject = e.streams[0];
       }
     };
 
@@ -105,10 +115,16 @@ export default function Lobby() {
           break;
         }
         case "offer":
+          console.log("here", outerData);
           if (outerData) {
             await peer.setRemoteDescription(
               new RTCSessionDescription(outerData.ClientOffer)
             );
+            remoteDescriptionStatus.current = true;
+            newIceCandidateQueue.current.forEach((element) => {
+              peer.addIceCandidate(new RTCIceCandidate(element));
+            });
+
             console.log(outerData);
             const answer = await peer.createAnswer();
             console.log(answer);
@@ -122,23 +138,31 @@ export default function Lobby() {
           }
           break;
         case "answer":
-          if (outerData) {
-            console.log(outerData);
-            await peer.setRemoteDescription(
-              new RTCSessionDescription(outerData.answer)
-            );
-          }
+          // if (outerData) {
+          console.log(outerData);
+          await peer.setRemoteDescription(
+            new RTCSessionDescription(outerData.answer)
+          );
+          remoteDescriptionStatus.current = true;
+          newIceCandidateQueue.current.forEach((element) => {
+            peer.addIceCandidate(new RTCIceCandidate(element));
+          });
+          // }
           break;
         case "skip":
           peerRef.current?.close();
           peerRef.current = null;
           break;
         case "ice-candidate":
-          if (outerData) {
+          // if (outerData) {
+          if (!remoteDescriptionStatus.current) {
+            newIceCandidateQueue.current.push(outerData.candidate);
+          } else {
             await peer.addIceCandidate(
               new RTCIceCandidate(outerData.candidate)
             );
           }
+          // }
           break;
         case "chat":
           console.log("chat:", outerData);
