@@ -34,10 +34,10 @@ export default function Lobby() {
         } else {
           console.log("else");
         }
-        stream.getTracks().forEach((track) => {
-          console.log("tracks", track);
-          peer.addTrack(track, stream);
-        });
+        // stream.getTracks().forEach((track) => {
+        //   console.log("tracks", track);
+        //   peer.addTrack(track, stream);
+        // });
       })
       .catch((err) => {
         console.error("Error getting user media:", err);
@@ -103,6 +103,13 @@ export default function Lobby() {
           console.log("waiting");
           break;
         case "caller": {
+          const stream = await navigator.mediaDevices.getUserMedia({audio:true, video:true})
+          if (localVideoRef.current){
+            localVideoRef.current.srcObject = stream
+          }
+          stream.getTracks().forEach(track => {
+            peer.addTrack(track,stream)
+          });
           const ClientOffer = await peer.createOffer();
           console.log(ClientOffer);
           await peer.setLocalDescription(ClientOffer);
@@ -120,7 +127,15 @@ export default function Lobby() {
             await peer.setRemoteDescription(
               new RTCSessionDescription(outerData.ClientOffer)
             );
+            const stream = await navigator.mediaDevices.getUserMedia({audio:true, video:true})
+            if(localVideoRef.current){
+              localVideoRef.current.srcObject = stream
+            }
+            stream.getTracks().forEach(track => {
+              peer.addTrack(track,stream)
+            });
             remoteDescriptionStatus.current = true;
+
             newIceCandidateQueue.current.forEach((element) => {
               peer.addIceCandidate(new RTCIceCandidate(element));
             });
